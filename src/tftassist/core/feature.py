@@ -4,12 +4,29 @@
 """
 
 import numpy as np
-from numba import jit
+from numba import njit
 from typing import Dict, List
 
-@jit(nopython=True, cache=True)
-def build_feature(state: 'BoardState') -> np.ndarray:
-    """构建特征向量。
+from .state import BoardState, TRAIT_VOCAB
+
+@njit(cache=True, nogil=True)
+def _pad(vec: np.ndarray, length: int) -> np.ndarray:
+    """填充向量到指定长度。
+
+    Args:
+        vec: 输入向量
+        length: 目标长度
+
+    Returns:
+        填充后的向量
+    """
+    out = np.zeros(length, dtype=np.float32)
+    n = min(len(vec), length)
+    out[:n] = vec[:n]
+    return out
+
+def build_feature(state: BoardState) -> np.ndarray:
+    """将棋盘状态转换为机器学习特征向量。
 
     Args:
         state: 棋盘状态对象
@@ -20,35 +37,31 @@ def build_feature(state: 'BoardState') -> np.ndarray:
         - 板凳羁绊特征
         - 连续特征（生命值百分比、护盾百分比、金币、等级）
         - 敌方生命值向量（填充到7个）
-
-    Note:
-        使用 numba.jit 加速计算
     """
-    # 初始化特征列表
-    features = []
-    
     # 1. one-hot 羁绊特征
-    trait_counts = np.zeros(len(state.traits))
-    for trait in state.active_traits:
-        trait_counts[state.traits.index(trait)] = 1
-    features.extend(trait_counts)
-    
+    trait_vec = np.zeros(len(TRAIT_VOCAB), dtype=np.float32)
+    for t, c in state.traits.items():
+        trait_vec[TRAIT_VOCAB[t]] = c
+        
     # 2. 板凳羁绊特征
-    bench_traits = np.zeros(len(state.traits))
-    for unit in state.bench:
-        for trait in unit.traits:
-            bench_traits[state.traits.index(trait)] += 1
-    features.extend(bench_traits)
-    
+    bench_vec = np.zeros(len(TRAIT_VOCAB), dtype=np.float32)
+    for u in state.bench_units:
+        for t in u.traits:
+            bench_vec[TRAIT_VOCAB[t]] += 1
+            
     # 3. 连续特征
-    hp_pct = state.player_hp / state.max_hp
-    shield_pct = state.player_shield / state.max_shield if state.max_shield > 0 else 0
-    features.extend([hp_pct, shield_pct, state.gold, state.level])
+    cont = np.array(
+        [
+            state.hp_pct,
+            state.shield_pct,
+            state.gold,
+            state.level,
+        ],
+        dtype=np.float32,
+    )
     
     # 4. 敌方生命值向量
-    enemy_hp = np.array([p.hp for p in state.enemies])
-    if len(enemy_hp) < 7:
-        enemy_hp = np.pad(enemy_hp, (0, 7 - len(enemy_hp)))
-    features.extend(enemy_hp)
+    enemy = _pad(np.asarray(state.enemy_hp_vec, dtype=np.float32), 7)
     
-    return np.array(features, dtype=np.float32) 
+    # 拼接所有特征
+    return np.concatenate([trait_vec, bench_vec, cont, enemy]) 

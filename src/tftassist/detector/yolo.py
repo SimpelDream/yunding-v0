@@ -73,12 +73,20 @@ def _postprocess(outputs: np.ndarray, state: 'BoardState') -> List[Dict]:
         for box in outputs:
             # 解析边界框信息
             x, y, w, h, conf, *class_probs = box
+            
+            # 过滤低置信度检测
+            if conf < 0.25:
+                continue
+                
             class_id = np.argmax(class_probs)
             class_name = CLASS_NAMES[class_id]
             
-            # 处理特殊类别
-            if class_name in ["blue_hex", "artifact_hex", "void_hex"]:
-                state.hex_map[class_name] = (x, y)
+            # 处理特殊类别（六边形）
+            if class_name.startswith('hex'):
+                # 计算棋盘坐标
+                row = int(y / (state.board_height / 4))
+                col = int(x / (state.board_width / 7))
+                state.hex_map[(row, col)] = class_name
             
             results.append({
                 "class": class_name,
@@ -101,7 +109,7 @@ def detect(image: np.ndarray, state: 'BoardState') -> List[Dict]:
         检测结果列表
 
     Raises:
-        RuntimeError: 如果检测过程失败
+        RuntimeError: 如果检测过程失败或预处理/后处理函数未实现
     """
     if not hasattr(detect, '_preprocess') or not hasattr(detect, '_postprocess'):
         raise RuntimeError("预处理或后处理函数未实现")
