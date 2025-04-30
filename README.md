@@ -1,4 +1,22 @@
-# TFT 云顶之弈辅助工具
+# TFT Assist
+
+云顶之弈助手，提供游戏状态识别和策略建议。
+
+## 快速开始
+
+### Windows
+
+```powershell
+.\scripts\setup_env.ps1
+.\scripts\dvc_flow.ps1
+```
+
+### Linux/Mac
+
+```bash
+bash scripts/setup_env.sh
+bash scripts/dvc_flow.sh
+```
 
 [![CI](https://github.com/yourusername/tft-assist/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/tft-assist/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/yourusername/tft-assist/branch/main/graph/badge.svg)](https://codecov.io/gh/yourusername/tft-assist)
