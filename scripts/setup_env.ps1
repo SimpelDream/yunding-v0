@@ -1,3 +1,5 @@
+#requires -version 5.0
+
 # 检查依赖
 $dependencies = @{
     "git" = "git --version"
