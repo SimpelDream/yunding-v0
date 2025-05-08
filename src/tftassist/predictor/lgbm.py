@@ -1,96 +1,69 @@
-"""LightGBM 预测器模块。
-
-此模块实现了基于 LightGBM 的胜率和伤害预测功能。
-"""
+"""实现基于LightGBM的预测功能。"""
 
 import logging
-from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import lightgbm as lgb
 import numpy as np
-from numba import jit
 
-from tftassist.core.state import BoardState
+from ..core.state import BoardState
 
 logger = logging.getLogger(__name__)
 
-
-@jit(nopython=True)
-def _extract_features(state: Dict) -> np.ndarray:
-    """从游戏状态中提取特征。
-
-    Args:
-        state: 游戏状态字典
-
-    Returns:
-        特征向量
-    """
-    # TODO: 实现特征提取
-    raise NotImplementedError
-
-
 class LGBMPredictor:
-    """LightGBM 预测器。
-
-    使用 LightGBM 模型预测胜率和伤害。
-    """
-
-    def __init__(self, model_path: Path) -> None:
-        """初始化预测器。
-
+    """LightGBM预测器类。"""
+    
+    def __init__(self, model_path: str) -> None:
+        """初始化LightGBM预测器。
+        
         Args:
-            model_path: 模型文件路径
+            model_path: 模型路径
         """
-        self.model = lgb.Booster(model_file=str(model_path))
+        self.model = lgb.Booster(model_file=model_path)
         logger.info(f"加载 LightGBM 模型: {model_path}")
-
-    def predict(self, state: BoardState) -> Tuple[float, float]:
-        """预测胜率和伤害。
-
+        
+    def predict(self, features: np.ndarray) -> Tuple[np.ndarray, Dict[str, float]]:
+        """预测游戏状态。
+        
         Args:
-            state: 游戏状态
-
+            features: 特征向量
+            
         Returns:
-            胜率和伤害预测值
+            预测结果和特征重要性
         """
-        # 将状态转换为特征向量
-        features = _extract_features(state.model_dump())
-        
         # 预测
-        pred = self.model.predict(features.reshape(1, -1))
-        win_rate = float(pred[0])
-        damage = float(pred[1])
+        pred = np.array(self.model.predict(features), dtype=np.float32)
         
-        return win_rate, damage
-
+        # 获取特征重要性
+        importance = self.model.feature_importance(importance_type='gain')
+        feature_names = self.model.feature_name()
+        importance_dict = {name: float(imp) for name, imp in zip(feature_names, importance)}
+        
+        return pred, importance_dict
+    
     def train(
         self,
         X: np.ndarray,
         y: np.ndarray,
-        params: Dict = None,
-        num_boost_round: int = 1200,
+        params: Optional[Dict[str, Any]] = None
     ) -> None:
         """训练模型。
-
+        
         Args:
             X: 特征矩阵
-            y: 标签矩阵
+            y: 标签向量
             params: 模型参数
-            num_boost_round: 迭代轮数
         """
         if params is None:
             params = {
-                "objective": "regression",
-                "metric": "rmse",
-                "num_leaves": 96,
-                "learning_rate": 0.03,
-                "feature_fraction": 0.8,
-                "bagging_fraction": 0.8,
-                "bagging_freq": 5,
-                "verbose": -1,
+                'objective': 'regression',
+                'metric': 'rmse',
+                'boosting_type': 'gbdt',
+                'num_leaves': 31,
+                'learning_rate': 0.05,
+                'feature_fraction': 0.9
             }
-
+        
         # 创建数据集
         train_data = lgb.Dataset(X, label=y)
         
@@ -98,7 +71,7 @@ class LGBMPredictor:
         self.model = lgb.train(
             params,
             train_data,
-            num_boost_round=num_boost_round,
+            num_boost_round=100
         )
         
         logger.info("模型训练完成") 

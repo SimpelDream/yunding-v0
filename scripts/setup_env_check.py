@@ -3,9 +3,8 @@
 此脚本检查项目依赖的版本信息。
 """
 
-import sys
 import subprocess
-from typing import Dict, List
+from typing import Dict
 
 def get_version(cmd: str) -> str:
     """获取命令的版本信息。

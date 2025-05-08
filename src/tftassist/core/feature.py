@@ -1,29 +1,84 @@
-"""特征构建模块。
+"""特征工程模块。
 
-此模块实现了从棋盘状态构建特征向量的功能。
+此模块实现了游戏状态的特征提取功能。
 """
 
+import logging
+from typing import Dict, List, Optional, Tuple, Union, Any
+
 import numpy as np
-from numba import njit
-from typing import Dict, List
+from numba import jit
 
-from .state import BoardState, TRAIT_VOCAB
+from .state import BoardState, Unit, TRAIT_VOCAB
 
-@njit(cache=True, nogil=True)
-def _pad(vec: np.ndarray, length: int) -> np.ndarray:
-    """填充向量到指定长度。
+logger = logging.getLogger(__name__)
 
+@jit(nopython=True)
+def _extract_traits(units: List[Unit]) -> np.ndarray:
+    """提取特质特征。
+    
     Args:
-        vec: 输入向量
-        length: 目标长度
-
+        units: 单位列表
+        
     Returns:
-        填充后的向量
+        特质特征向量
     """
-    out = np.zeros(length, dtype=np.float32)
-    n = min(len(vec), length)
-    out[:n] = vec[:n]
-    return out
+    trait_list = list(TRAIT_VOCAB.keys())
+    trait_vec = np.zeros(len(trait_list), dtype=np.float32)
+    
+    for unit in units:
+        for trait in unit.traits:
+            if trait in trait_list:
+                idx = trait_list.index(trait)
+                trait_vec[idx] += 1
+                
+    return trait_vec
+
+def extract_features(state: BoardState) -> np.ndarray:
+    """提取游戏状态特征。
+    
+    Args:
+        state: 游戏状态
+        
+    Returns:
+        特征向量
+    """
+    # 提取特质特征
+    trait_vec = _extract_traits(state.units)
+    
+    # 提取其他特征
+    other_features = np.array([
+        float(state.stage),
+        state.phase_timer,
+        float(state.rank),
+        float(state.hp),
+        float(state.gold),
+        float(state.level),
+        state.xp_progress,
+        float(state.board_height),
+        float(state.board_width),
+        state.hp_pct,
+        state.shield_pct
+    ], dtype=np.float32)
+    
+    # 合并特征
+    features = np.concatenate([trait_vec, other_features]).astype(np.float32)
+    
+    return features
+
+def _pad(x: np.ndarray, size: int) -> np.ndarray:
+    """填充数组到指定大小。
+    
+    Args:
+        x: 输入数组
+        size: 目标大小
+        
+    Returns:
+        填充后的数组
+    """
+    if len(x) >= size:
+        return x[:size]
+    return np.pad(x, (0, size - len(x)), mode='constant')
 
 def build_feature(state: BoardState) -> np.ndarray:
     """将棋盘状态转换为机器学习特征向量。

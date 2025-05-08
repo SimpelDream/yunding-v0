@@ -1,96 +1,56 @@
-"""插件管理器。
+"""插件管理器模块。
 
-此模块实现了插件系统的核心功能，负责插件的加载和管理。
+此模块实现了插件的加载和管理功能。
 """
 
-import importlib
-import importlib.util
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List
 
 import pluggy
 
-from tftassist.plugins.hooks import PluginHookSpec
-
 logger = logging.getLogger(__name__)
 
-
 class PluginManager:
-    """插件管理器类。
+    """插件管理器类。"""
 
-    负责插件的加载、注册和管理。
-    """
-
-    def __init__(self) -> None:
-        """初始化插件管理器。"""
-        self.pm = pluggy.PluginManager("tftassist")
-        self.pm.add_hookspecs(PluginHookSpec)
-        self._plugins: Dict[str, Any] = {}
-
-    def load_plugin(self, plugin_path: Path) -> None:
-        """加载单个插件。
-
-        Args:
-            plugin_path: 插件文件路径
-        """
-        try:
-            spec = importlib.util.spec_from_file_location(
-                plugin_path.stem, str(plugin_path)
-            )
-            if spec is None or spec.loader is None:
-                raise ImportError(f"无法加载插件: {plugin_path}")
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            self.pm.register(module)
-            self._plugins[plugin_path.stem] = module
-            logger.info(f"成功加载插件: {plugin_path.stem}")
-        except Exception as e:
-            logger.error(f"加载插件失败 {plugin_path}: {e}")
-
-    def load_plugins(self, plugin_dir: Path) -> None:
-        """加载指定目录下的所有插件。
+    def __init__(self, plugin_dir: str):
+        """初始化插件管理器。
 
         Args:
             plugin_dir: 插件目录路径
         """
-        if not plugin_dir.exists():
-            logger.warning(f"插件目录不存在: {plugin_dir}")
-            return
+        self.plugin_dir = Path(plugin_dir)
+        self.pm = pluggy.PluginManager("tftassist")
+        logger.info(f"初始化插件管理器: {self.plugin_dir}")
 
-        for plugin_file in plugin_dir.glob("*.py"):
-            if plugin_file.name.startswith("_"):
-                continue
-            self.load_plugin(plugin_file)
+    def load_plugins(self) -> None:
+        """加载所有插件。"""
+        # TODO: 实现插件加载逻辑
+        pass
 
     def get_plugin(self, name: str) -> Any:
-        """获取指定名称的插件实例。
+        """获取指定名称的插件。
 
         Args:
             name: 插件名称
 
         Returns:
-            插件实例
+            插件对象
         """
-        return self._plugins.get(name)
+        return self.pm.get_plugin(name)
 
-    def get_all_plugins(self) -> Dict[str, Any]:
-        """获取所有已加载的插件。
+    def list_plugins(self) -> List[Dict[str, Any]]:
+        """列出所有已加载的插件。
 
         Returns:
-            插件名称到插件实例的映射
+            插件信息列表
         """
-        return self._plugins.copy()
-
-    def call_hook(self, hook_name: str, *args: Any, **kwargs: Any) -> List[Any]:
-        """调用指定名称的钩子。
-
-        Args:
-            hook_name: 钩子名称
-            *args: 位置参数
-            **kwargs: 关键字参数
-
-        Returns:
-            所有插件钩子的返回值列表
-        """
-        return self.pm.hook.__getattr__(hook_name)(*args, **kwargs) 
+        plugins = []
+        for name, plugin in self.pm.list_name_plugin():
+            plugins.append({
+                "name": name,
+                "version": getattr(plugin, "__version__", "unknown"),
+                "description": getattr(plugin, "__doc__", "")
+            })
+        return plugins 
