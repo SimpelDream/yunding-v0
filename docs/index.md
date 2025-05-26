@@ -46,26 +46,6 @@ python -m tftassist
 ```
 3. 享受实时分析和预测
 
-## 本地初始化
-
-```powershell
-.\scripts\setup_env.ps1
-```
-
-```bash
-bash scripts/setup_env.sh
-```
-
-## 数据采集 & DVC
-
-```powershell
-.\scripts\dvc_flow.ps1
-```
-
-```bash
-bash scripts/dvc_flow.sh
-```
-
 ## 开发指南
 
 ### 环境配置

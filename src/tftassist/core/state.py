@@ -1,94 +1,98 @@
 """游戏状态模块。
 
-此模块定义了游戏状态的数据结构。
+此模块定义了游戏状态的数据结构，包括单位、棋盘状态等核心数据模型。
+使用pydantic进行数据验证和序列化。
 """
 
-import logging
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
-
-import numpy as np
-
-logger = logging.getLogger(__name__)
+from typing import Dict, List, Literal, Optional, Tuple
+from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 
 @dataclass
 class Unit:
-    """单位类。"""
+    """游戏单位。
+    
+    Attributes:
+        name: 单位名称
+        star: 星级
+        items: 装备列表
+        position: 位置坐标
+        hp_pct: 生命值百分比
+        shield_pct: 护盾值百分比
+        status_tags: 状态标签列表
+    """
     
     name: str
-    traits: List[str]
+    star: int
+    items: List[str]
     position: Tuple[int, int]
-    size: Tuple[int, int]
-    level: int = 1
-    hp: float = 100.0
-    attack: float = 10.0
-    defense: float = 5.0
-    attack_speed: float = 1.0
-    range: int = 1
-    mana: float = 0.0
-    max_mana: float = 100.0
-    crit_chance: float = 0.0
-    dodge_chance: float = 0.0
+    hp_pct: float
+    shield_pct: float
+    status_tags: List[str] = field(default_factory=list)
 
+@dataclass
 class BoardState:
-    """棋盘状态类。"""
+    """游戏状态。
     
-    def __init__(self) -> None:
-        """初始化棋盘状态。"""
-        # 基本信息
-        self.side: str = ""  # 玩家阵营
-        self.stage: int = 1  # 当前阶段
-        self.phase_timer: float = 0.0  # 阶段计时器
-        self.rank: int = 0  # 当前排名
-        self.hp: int = 100  # 生命值
-        self.gold: int = 0  # 金币
-        self.level: int = 1  # 等级
-        self.xp_progress: float = 0.0  # 经验进度
-        
-        # 商店信息
-        self.shop_odds: Dict[str, float] = {}  # 商店概率
-        self.shop_cards: List[Unit] = []  # 商店卡牌
-        
-        # 特质信息
-        self.traits: Dict[str, int] = {}  # 激活的特质
-        self.inactive_traits: Dict[str, int] = {}  # 未激活的特质
-        
-        # 单位信息
-        self.units: List[Unit] = []  # 棋盘单位
-        self.bench_units: List[Unit] = []  # 备战区单位
-        
-        # 海克斯信息
-        self.augments: List[str] = []  # 海克斯强化
-        
-        # 棋盘信息
-        self.hex_map: np.ndarray = np.zeros((0, 0), dtype=np.uint8)  # 六边形地图
-        self.combo_meter: float = 0.0  # 连击计量器
-        
-        # 敌人信息
-        self.enemy_hp_vec: np.ndarray = np.zeros(8, dtype=np.float32)  # 敌人生命值向量
-        
-        # 性能信息
-        self.fps: float = 0.0  # 帧率
-        self.ping_ms: float = 0.0  # 延迟
-        self.timestamp: float = 0.0  # 时间戳
-        
-        # 尺寸信息
-        self.board_height: int = 0  # 棋盘高度
-        self.board_width: int = 0  # 棋盘宽度
-        
-        # 状态信息
-        self.hp_pct: float = 1.0  # 生命值百分比
-        self.shield_pct: float = 0.0  # 护盾百分比
+    Attributes:
+        side: 阵营
+        stage: 阶段
+        phase_timer: 阶段计时器
+        rank: 排名
+        hp: 生命值
+        gold: 金币
+        level: 等级
+        xp_progress: 经验值进度
+        shop_odds: 商店概率
+        shop_cards: 商店卡牌
+        traits: 激活的特质
+        inactive_traits: 未激活的特质
+        units: 场上单位
+        bench_units: 备战区单位
+        augments: 强化符文
+        hex_map: 六边形地图
+        combo_meter: 连击计量器
+        enemy_hp_vec: 敌人生命值向量
+        fps: 帧率
+        ping_ms: 延迟
+        timestamp: 时间戳
+    """
+    
+    side: str
+    stage: str
+    rank: int
+    hp: int
+    gold: int
+    level: int
+    xp_progress: Tuple[int, int]
+    timestamp: float
+    
+    phase_timer: float = 0.0
+    shop_odds: Dict[str, float] = field(default_factory=dict)
+    shop_cards: List[str] = field(default_factory=list)
+    traits: Dict[str, int] = field(default_factory=dict)
+    inactive_traits: Dict[str, int] = field(default_factory=dict)
+    units: List[Unit] = field(default_factory=list)
+    bench_units: List[Unit] = field(default_factory=list)
+    augments: List[str] = field(default_factory=list)
+    hex_map: Dict[Tuple[int, int], str] = field(default_factory=dict)
+    combo_meter: int = 0
+    enemy_hp_vec: List[int] = field(default_factory=list)
+    fps: int = 0
+    ping_ms: int = 0
 
 # 特质词汇表
-TRAIT_VOCAB = {
-    "assassin": "刺客",
-    "brawler": "格斗家",
-    "challenger": "挑战者",
-    "enchanter": "秘术师",
-    "gunner": "枪手",
-    "mage": "法师",
-    "marksman": "射手",
-    "tank": "坦克",
-    "vanguard": "先锋"
+TRAIT_VOCAB: Dict[str, str] = {
+    "Mage": "法师",
+    "Assassin": "刺客",
+    "Tank": "坦克",
+    "Support": "辅助",
+    "Marksman": "射手",
+    "Fighter": "战士",
+    "Mage": "法师",
+    "Assassin": "刺客",
+    "Tank": "坦克",
+    "Support": "辅助",
+    "Marksman": "射手",
+    "Fighter": "战士"
 } 

@@ -1,78 +1,120 @@
-"""LightGBM 训练脚本。
+"""LightGBM训练脚本。
 
-此脚本用于训练胜率和伤害预测模型。
+此脚本用于训练LightGBM模型，用于预测胜率和伤害。
 """
 
+import argparse
 import logging
 from pathlib import Path
 
-import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from tftassist.predictor.lgbm import LGBMPredictor
+
 logger = logging.getLogger(__name__)
 
-
-def main() -> None:
-    """主函数。"""
-    # 设置日志
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+def parse_args():
+    """解析命令行参数。"""
+    parser = argparse.ArgumentParser(description="训练LightGBM模型")
+    parser.add_argument(
+        "--data",
+        type=str,
+        required=True,
+        help="数据文件路径"
     )
+    parser.add_argument(
+        "--save-dir",
+        type=str,
+        default="models",
+        help="保存目录"
+    )
+    parser.add_argument(
+        "--num-leaves",
+        type=int,
+        default=96,
+        help="叶子节点数"
+    )
+    parser.add_argument(
+        "--n-estimators",
+        type=int,
+        default=1200,
+        help="树的数量"
+    )
+    parser.add_argument(
+        "--learning-rate",
+        type=float,
+        default=0.03,
+        help="学习率"
+    )
+    parser.add_argument(
+        "--subsample",
+        type=float,
+        default=0.8,
+        help="样本采样比例"
+    )
+    parser.add_argument(
+        "--colsample",
+        type=float,
+        default=0.8,
+        help="特征采样比例"
+    )
+    return parser.parse_args()
 
+def load_data(data_path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """加载数据。
+    
+    Args:
+        data_path: 数据文件路径
+        
+    Returns:
+        特征矩阵、胜率标签、伤害标签
+    """
     # 加载数据
-    data_path = Path("datasets/train.csv")
     df = pd.read_csv(data_path)
+    
+    # 分离特征和标签
+    X = df.drop(["win", "damage"], axis=1).values
+    y_win = df["win"].values
+    y_dmg = df["damage"].values
+    
+    return X, y_win, y_dmg
 
-    # 准备特征和标签
-    X = df.drop(["win_rate", "damage"], axis=1)
-    y = df[["win_rate", "damage"]]
-
-    # 划分训练集和验证集
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
-    # 创建数据集
-    train_data = lgb.Dataset(X_train, label=y_train)
-    val_data = lgb.Dataset(X_val, label=y_val, reference=train_data)
-
-    # 设置参数
+def main():
+    """主函数。"""
+    args = parse_args()
+    
+    # 创建保存目录
+    save_dir = Path(args.save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 加载数据
+    X, y_win, y_dmg = load_data(args.data)
+    
+    # 训练参数
     params = {
-        "objective": "regression",
-        "metric": "rmse",
-        "num_leaves": 96,
-        "learning_rate": 0.03,
-        "feature_fraction": 0.8,
-        "bagging_fraction": 0.8,
-        "bagging_freq": 5,
-        "verbose": -1,
+        "num_leaves": args.num_leaves,
+        "n_estimators": args.n_estimators,
+        "learning_rate": args.learning_rate,
+        "subsample": args.subsample,
+        "colsample_bytree": args.colsample
     }
-
+    
     # 训练模型
-    model = lgb.train(
-        params,
-        train_data,
-        num_boost_round=1200,
-        valid_sets=[train_data, val_data],
-        early_stopping_rounds=50,
+    LGBMPredictor.train(
+        X=X,
+        y_win=y_win,
+        y_dmg=y_dmg,
+        save_dir=save_dir,
+        **params
     )
-
-    # 保存模型
-    model.save_model("models/lgbm.txt")
-
-    # 评估模型
-    train_pred = model.predict(X_train)
-    val_pred = model.predict(X_val)
-
-    train_rmse = np.sqrt(np.mean((y_train - train_pred) ** 2))
-    val_rmse = np.sqrt(np.mean((y_val - val_pred) ** 2))
-
-    logger.info(f"训练集 RMSE: {train_rmse:.4f}")
-    logger.info(f"验证集 RMSE: {val_rmse:.4f}")
-
+    
+    logger.info("训练完成")
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
     main() 

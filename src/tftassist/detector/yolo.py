@@ -1,122 +1,140 @@
-"""YOLO 目标检测器。
+"""YOLO-NAS检测器模块。
 
-此模块实现了基于 YOLO 的目标检测功能。
+此模块实现了基于YOLO-NAS-S的目标检测功能，用于识别棋盘上的单位、装备、状态等。
 """
 
-import cv2
 import logging
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import onnxruntime as ort
-from pathlib import Path
-from typing import Any, Dict, List, Tuple, cast
-from numpy.typing import NDArray
+import torch
 from ultralytics import YOLO
-
-from ..core.state import BoardState, Unit
 
 logger = logging.getLogger(__name__)
 
-# 类别名称列表
-CLASS_NAMES = [
-    "chess_unit", "bench_unit", "star_1", "star_2", "star_3",
-    "item_icon", "status_icon", "blue_hex", "artifact_hex", "void_hex", "portal_icon"
+# 检测类别定义
+DETECTION_CLASSES = [
+    "chess_unit",  # 棋盘单位
+    "bench_unit",  # 备战区单位
+    "star_1",      # 1星
+    "star_2",      # 2星
+    "star_3",      # 3星
+    "item_icon",   # 装备图标
+    "status_icon", # 状态图标
+    "blue_hex",    # 蓝色海克斯
+    "artifact_hex",# 神器海克斯
+    "void_hex",    # 虚空海克斯
+    "portal_icon"  # 传送门图标
 ]
 
-def _preprocess(image: NDArray[np.uint8]) -> NDArray[np.float32]:
-    """预处理图像。
-
-    Args:
-        image: 输入图像
-
-    Returns:
-        预处理后的张量
+class YOLONASDetector:
+    """YOLO-NAS-S检测器类。
+    
+    Attributes:
+        model: YOLO-NAS-S模型
+        conf_threshold: 置信度阈值
+        iou_threshold: IOU阈值
+        device: 运行设备
     """
-    try:
-        # 计算缩放比例
-        h, w = image.shape[:2]
-        scale = min(1280 / w, 1280 / h)
-        new_size = (int(w * scale), int(h * scale))
+    
+    def __init__(
+        self,
+        model_path: Union[str, Path],
+        conf_threshold: float = 0.25,
+        iou_threshold: float = 0.45,
+        device: str = "cuda" if torch.cuda.is_available() else "cpu"
+    ) -> None:
+        """初始化检测器。
         
-        # 调整大小
-        tensor = cv2.resize(image, new_size)
+        Args:
+            model_path: 模型路径
+            conf_threshold: 置信度阈值
+            iou_threshold: IOU阈值
+            device: 运行设备
+        """
+        self.model = YOLO(model_path)
+        self.conf_threshold = conf_threshold
+        self.iou_threshold = iou_threshold
+        self.device = device
         
-        # 颜色空间转换
-        tensor = cv2.cvtColor(tensor, cv2.COLOR_BGR2RGB)
+        # 设置模型参数
+        self.model.conf = conf_threshold
+        self.model.iou = iou_threshold
+        self.model.to(device)
         
-        # 归一化
-        tensor = tensor.astype(np.float32) / 255.0
+        logger.info(f"YOLO-NAS-S检测器初始化完成，使用设备: {device}")
+    
+    def detect(self, image: np.ndarray) -> List[Dict]:
+        """执行目标检测。
         
-        # 调整维度顺序
-        tensor = np.transpose(tensor, (2, 0, 1))
-        tensor = np.expand_dims(tensor, axis=0)
-        
-        return tensor
-    except Exception as e:
-        raise RuntimeError(f"图像预处理失败: {str(e)}") from e
-
-def _postprocess(outputs: NDArray[np.float32], state: BoardState) -> List[Dict[str, Any]]:
-    """后处理模型输出。
-
-    Args:
-        outputs: 模型输出
-        state: 游戏状态
-
-    Returns:
-        检测结果列表
-    """
-    try:
-        results = []
-        for box in outputs:
-            # 解析边界框信息
-            x, y, w, h, conf, *class_probs = box
+        Args:
+            image: 输入图像，BGR格式
             
-            # 过滤低置信度检测
-            if conf < 0.25:
-                continue
-                
-            class_id = np.argmax(class_probs)
-            class_name = CLASS_NAMES[class_id]
+        Returns:
+            检测结果列表，每个结果包含类别、置信度、边界框等信息
+        """
+        results = self.model(image, verbose=False)[0]
+        detections = []
+        
+        for box in results.boxes:
+            cls = int(box.cls.item())
+            conf = float(box.conf.item())
+            xyxy = box.xyxy.tolist()[0]
             
-            # 处理特殊类别（六边形）
-            if class_name.startswith('hex'):
-                # 计算棋盘坐标
-                row = int(y / (state.board_height / 4))
-                col = int(x / (state.board_width / 7))
-                state.hex_map[(row, col)] = class_name
-            
-            results.append({
-                "class": class_name,
-                "confidence": float(conf),
-                "bbox": (float(x), float(y), float(w), float(h))
+            detections.append({
+                "class": DETECTION_CLASSES[cls],
+                "confidence": conf,
+                "bbox": xyxy
             })
         
-        return results
-    except Exception as e:
-        raise RuntimeError(f"输出后处理失败: {str(e)}") from e
-
-def detect(image: NDArray[np.uint8], state: BoardState) -> List[Dict[str, Any]]:
-    """执行目标检测。
-
-    Args:
-        image: 输入图像
-        state: 游戏状态
-
-    Returns:
-        检测结果列表
-    """
-    try:
-        # 预处理
-        tensor = _preprocess(image)
+        return detections
+    
+    def export_onnx(self, save_path: Union[str, Path]) -> None:
+        """导出ONNX模型。
         
-        # 推理
-        session = ort.InferenceSession("models/yolo.onnx")
-        outputs = session.run(None, {"images": tensor})
+        Args:
+            save_path: 保存路径
+        """
+        self.model.export(format="onnx", imgsz=1280)
+        logger.info(f"模型已导出到: {save_path}")
+    
+    @staticmethod
+    def train(
+        data_yaml: Union[str, Path],
+        epochs: int = 60,
+        batch_size: int = 16,
+        imgsz: int = 1280,
+        save_dir: Optional[Union[str, Path]] = None
+    ) -> None:
+        """训练YOLO-NAS-S模型。
         
-        # 后处理
-        results = _postprocess(outputs[0], state)
-        return results
-    except Exception as e:
-        raise RuntimeError(f"目标检测失败: {str(e)}") from e
+        Args:
+            data_yaml: 数据配置文件路径
+            epochs: 训练轮数
+            batch_size: 批次大小
+            imgsz: 图像尺寸
+            save_dir: 保存目录
+        """
+        model = YOLO("yolo_nas_s.pt")
+        
+        # 训练参数
+        train_args = {
+            "data": data_yaml,
+            "epochs": epochs,
+            "batch": batch_size,
+            "imgsz": imgsz,
+            "device": "0" if torch.cuda.is_available() else "cpu",
+            "optimizer": "AdamW",
+            "amp": True,  # 启用混合精度训练
+            "project": save_dir if save_dir else "runs/train",
+            "name": "yolo_nas_s_tft"
+        }
+        
+        # 开始训练
+        model.train(**train_args)
+        logger.info("模型训练完成")
 
 class YOLODetector:
     """YOLO 目标检测器类。"""
@@ -130,7 +148,7 @@ class YOLODetector:
         self.model = YOLO(model_path)
         logger.info(f"加载YOLO模型: {model_path}")
 
-    def detect(self, frame: NDArray[np.uint8]) -> List[Tuple[float, float, float, float, float, int]]:
+    def detect(self, frame: np.ndarray) -> List[Tuple[float, float, float, float, float, int]]:
         """检测目标。
         
         Args:
@@ -147,7 +165,7 @@ class YOLODetector:
         img = img / 255.0
         
         # 推理
-        results: Any = self.model(img)[0]
+        results = self.model(img)[0]
         boxes = results.boxes
         
         # 后处理
@@ -160,7 +178,7 @@ class YOLODetector:
             
         return detections
 
-    def update_state(self, state: BoardState, frame: NDArray[np.uint8]) -> None:
+    def update_state(self, state: BoardState, frame: np.ndarray) -> None:
         """更新游戏状态。
         
         Args:
@@ -221,7 +239,7 @@ class ONNXDetector:
         self.input_name = self.session.get_inputs()[0].name
         logger.info(f"加载 ONNX 模型: {model_path}")
 
-    def detect(self, image: NDArray[np.uint8]) -> List[Dict[str, Any]]:
+    def detect(self, image: np.ndarray) -> List[Dict]:
         """检测图像中的目标。
 
         Args:
@@ -240,7 +258,7 @@ class ONNXDetector:
         detections = self._postprocess(outputs)
         return detections
 
-    def _preprocess(self, image: NDArray[np.uint8]) -> NDArray[np.float32]:
+    def _preprocess(self, image: np.ndarray) -> np.ndarray:
         """预处理输入图像。
 
         Args:
@@ -252,7 +270,7 @@ class ONNXDetector:
         # TODO: 实现图像预处理
         raise NotImplementedError
 
-    def _postprocess(self, outputs: List[NDArray[np.float32]]) -> List[Dict[str, Any]]:
+    def _postprocess(self, outputs: List[np.ndarray]) -> List[Dict]:
         """后处理模型输出。
 
         Args:

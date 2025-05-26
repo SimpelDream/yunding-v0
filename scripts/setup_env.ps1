@@ -1,33 +1,70 @@
 #requires -version 5.0
 
-try {
-    # 检查 Python 版本
-    $pythonVersion = python --version
-    if (-not $?) {
-        Write-Host "❌ 未找到 Python" -ForegroundColor Red
-        exit 1
-    }
-    Write-Host "✅ 已安装 $pythonVersion" -ForegroundColor Green
-
-    # 检查 Poetry
-    $poetryVersion = poetry --version
-    if (-not $?) {
-        Write-Host "❌ 未找到 Poetry" -ForegroundColor Red
-        exit 1
-    }
-    Write-Host "✅ 已安装 $poetryVersion" -ForegroundColor Green
-
-    # 安装依赖
-    Write-Host "📦 正在安装依赖..." -ForegroundColor Yellow
-    poetry install --with dev
-
-    # 检查环境
-    Write-Host "🔍 正在检查环境..." -ForegroundColor Yellow
-    python scripts/setup_env_check.py
-
-    Write-Host "✅ 环境配置完成" -ForegroundColor Green
+# 检查依赖
+$deps = @{
+    "git" = "git --version"
+    "python" = "python --version"
+    "poetry" = "poetry --version"
+    "pre-commit" = "pre-commit --version"
 }
-catch {
-    Write-Host "❌ 发生错误：$($_.Exception.Message)" -ForegroundColor Red
+
+$failed = $false
+foreach ($dep in $deps.GetEnumerator()) {
+    try {
+        Invoke-Expression $dep.Value | Out-Null
+        Write-Host -ForegroundColor Green "✅ $($dep.Key) 已安装"
+    } catch {
+        Write-Host -ForegroundColor Red "❌ $($dep.Key) 未安装"
+        $failed = $true
+    }
+}
+
+if ($failed) {
+    Write-Host -ForegroundColor Red "❌ 依赖检查失败"
     exit 1
-} 
+}
+
+# 检查Python版本
+$python_version = python --version 2>&1
+if ($python_version -notmatch "Python 3\.(10|11)") {
+    Write-Host -ForegroundColor Red "❌ Python版本必须 >= 3.10"
+    exit 1
+}
+
+# 安装依赖
+try {
+    poetry install --with dev
+    if ($LASTEXITCODE -ne 0) {
+        throw "Poetry安装失败"
+    }
+    Write-Host -ForegroundColor Green "✅ 依赖安装成功"
+} catch {
+    Write-Host -ForegroundColor Red "❌ 依赖安装失败: $_"
+    exit 1
+}
+
+# 安装pre-commit钩子
+try {
+    poetry run pre-commit install
+    if ($LASTEXITCODE -ne 0) {
+        throw "Pre-commit安装失败"
+    }
+    Write-Host -ForegroundColor Green "✅ Pre-commit钩子安装成功"
+} catch {
+    Write-Host -ForegroundColor Red "❌ Pre-commit钩子安装失败: $_"
+    exit 1
+}
+
+# 运行测试
+try {
+    poetry run pytest
+    if ($LASTEXITCODE -ne 0) {
+        throw "测试失败"
+    }
+    Write-Host -ForegroundColor Green "✅ 测试通过"
+} catch {
+    Write-Host -ForegroundColor Red "❌ 测试失败: $_"
+    exit 1
+}
+
+Write-Host -ForegroundColor Green "✅ 环境设置完成" 

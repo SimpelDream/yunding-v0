@@ -1,49 +1,61 @@
 #!/bin/bash
 
+# ANSI颜色代码
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+
 # 检查依赖
-check_dependency() {
-    if command -v $1 &> /dev/null; then
-        echo -e "\033[32m✅ $1 已安装\033[0m"
-        return 0
-    else
-        echo -e "\033[31m❌ $1 未安装\033[0m"
+check_dep() {
+    if ! command -v $1 &> /dev/null; then
+        echo -e "${RED}❌ $1 未安装${NC}"
         return 1
+    else
+        echo -e "${GREEN}✅ $1 已安装${NC}"
+        return 0
     fi
 }
 
-dependencies=("git" "python" "poetry" "pre-commit")
-missing=()
-
-for dep in "${dependencies[@]}"; do
-    if ! check_dependency $dep; then
-        missing+=($dep)
-    fi
+# 检查所有依赖
+failed=0
+for dep in git python poetry pre-commit; do
+    check_dep $dep || failed=1
 done
 
-if [ ${#missing[@]} -ne 0 ]; then
-    echo -e "\033[31m请先安装缺失的依赖: ${missing[*]}\033[0m"
+if [ $failed -eq 1 ]; then
+    echo -e "${RED}❌ 依赖检查失败${NC}"
     exit 1
 fi
 
-# 安装项目依赖
+# 检查Python版本
+python_version=$(python3 --version 2>&1)
+if ! echo "$python_version" | grep -qE "Python 3\.(10|11)"; then
+    echo -e "${RED}❌ Python版本必须 >= 3.10${NC}"
+    exit 1
+fi
+
+# 安装依赖
+echo "📦 正在安装依赖..."
 if ! poetry install --with dev; then
-    echo -e "\033[31m❌ 依赖安装失败\033[0m"
+    echo -e "${RED}❌ 依赖安装失败${NC}"
     exit 1
 fi
-echo -e "\033[32m✅ 依赖安装成功\033[0m"
+echo -e "${GREEN}✅ 依赖安装成功${NC}"
 
-# 安装 pre-commit 钩子
-if ! pre-commit install; then
-    echo -e "\033[31m❌ pre-commit 安装失败\033[0m"
+# 安装pre-commit钩子
+echo "🔧 正在安装pre-commit钩子..."
+if ! poetry run pre-commit install; then
+    echo -e "${RED}❌ Pre-commit钩子安装失败${NC}"
     exit 1
 fi
-echo -e "\033[32m✅ pre-commit 安装成功\033[0m"
+echo -e "${GREEN}✅ Pre-commit钩子安装成功${NC}"
 
 # 运行测试
+echo "🧪 正在运行测试..."
 if ! poetry run pytest; then
-    echo -e "\033[31m❌ 测试失败\033[0m"
+    echo -e "${RED}❌ 测试失败${NC}"
     exit 1
 fi
-echo -e "\033[32m✅ 测试通过\033[0m"
+echo -e "${GREEN}✅ 测试通过${NC}"
 
-echo -e "\033[32m✅ 环境设置完成\033[0m" 
+echo -e "${GREEN}✅ 环境设置完成${NC}" 

@@ -1,62 +1,71 @@
 """环境检查脚本。
 
-此脚本用于检查项目依赖的版本和配置。
+此脚本用于检查项目依赖的版本信息。
 """
 
-import importlib
-import sys
-from typing import Dict, Optional
+import subprocess
+from typing import Optional
 
-def get_package_version(package_name: str) -> Optional[str]:
-    """获取包的版本。
-
+def get_package_version(package: str) -> Optional[str]:
+    """获取包版本。
+    
     Args:
-        package_name: 包名
-
+        package: 包名
+        
     Returns:
-        版本字符串，如果包未安装则返回 None
+        版本字符串, 如果包未安装则返回None
     """
     try:
-        module = importlib.import_module(package_name)
-        return getattr(module, "__version__", None)
-    except ImportError:
+        result = subprocess.run(
+            ["pip", "show", package],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        for line in result.stdout.splitlines():
+            if line.startswith("Version: "):
+                return line.split(": ")[1]
+        return None
+    except subprocess.CalledProcessError:
         return None
 
-def check_dependencies() -> Dict[str, Optional[str]]:
-    """检查主要依赖的版本。
-
-    Returns:
-        依赖版本字典
-    """
-    dependencies = {
-        "numpy": None,
-        "opencv-python": None,
-        "onnxruntime": None,
-        "ultralytics": None,
-        "paddlepaddle": None,
-        "paddleocr": None,
-        "lightgbm": None,
-        "dxcam": None,
-        "pyside6": None,
-        "numba": None,
-        "duckdb": None,
-        "dvc": None
-    }
-    
-    for package in dependencies:
-        dependencies[package] = get_package_version(package)
-        
-    return dependencies
-
 def main() -> None:
-    """主函数。"""
-    print("Python 版本:", sys.version)
-    print("\n依赖版本:")
+    """主函数, 打印所有依赖的版本信息。"""
+    # 核心依赖
+    core_deps = [
+        "torch",
+        "numpy",
+        "pandas",
+        "lightgbm",
+        "ultralytics",
+        "paddleocr",
+        "pyside6",
+        "pluggy"
+    ]
     
-    deps = check_dependencies()
-    for package, version in deps.items():
-        status = f"✅ {version}" if version else "❌ 未安装"
-        print(f"{package}: {status}")
+    # 开发依赖
+    dev_deps = [
+        "pytest",
+        "mypy",
+        "ruff",
+        "pre-commit"
+    ]
+    
+    print("核心依赖:")
+    for dep in core_deps:
+        version = get_package_version(dep)
+        if version:
+            print(f"  {dep}: {version}")
+        else:
+            print(f"  {dep}: 未安装")
+            
+    print("\n开发依赖:")
+    for dep in dev_deps:
+        version = get_package_version(dep)
+        if version:
+            print(f"  {dep}: {version}")
+        else:
+            print(f"  {dep}: 未安装")
 
 if __name__ == "__main__":
     main() 
