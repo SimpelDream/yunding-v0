@@ -9,68 +9,45 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# 检查 DVC 是否安装
+# 检查 DVC
 if ! command -v dvc &> /dev/null; then
-    echo -e "${RED}❌ DVC 未安装，请运行: pip install dvc[gdrive]${NC}"
+    echo -e "\033[31m❌ 未找到 DVC，请先安装: pip install dvc\033[0m"
     exit 1
 fi
+echo -e "\033[32m✅ 已安装 $(dvc --version)\033[0m"
 
 # 检查数据集目录
 if [ ! -d "datasets/raw" ]; then
-    echo -e "${RED}❌ 数据集目录 datasets/raw 不存在${NC}"
+    echo -e "\033[31m❌ 未找到 datasets/raw 目录\033[0m"
     exit 1
 fi
 
-# 获取远程存储 ID
-read -p "请输入 Google Drive remote ID (例如: gdrive://1xxx，直接回车跳过): " remoteId
-if [ -z "$remoteId" ]; then
-    echo -e "${YELLOW}跳过远程存储配置${NC}"
-fi
+# 询问 Google Drive ID
+read -p "请输入 Google Drive remote ID (可选，直接回车跳过): " drive_id
 
-# 检查是否已初始化
-if [ ! -d .dvc ]; then
-    echo -e "${YELLOW}初始化 DVC...${NC}"
-    dvc init
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}❌ DVC 初始化失败${NC}"
-        exit 1
-    fi
-fi
+# 初始化 DVC
+echo -e "\033[33m📦 正在初始化 DVC...\033[0m"
+dvc init
 
-# 添加远程存储（如果提供了 ID）
-if [ -n "$remoteId" ]; then
-    dvc remote add -d storage "$remoteId"
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}❌ 添加远程存储失败${NC}"
-        exit 1
-    fi
+# 添加 remote（如果提供了 ID）
+if [ ! -z "$drive_id" ]; then
+    dvc remote add -d myremote "gdrive://$drive_id"
+    echo -e "\033[32m✅ 已添加 Google Drive remote\033[0m"
 fi
 
 # 添加数据集
-echo -e "${YELLOW}添加数据集...${NC}"
+echo -e "\033[33m📦 正在添加数据集...\033[0m"
 dvc add datasets/raw
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ 添加数据集失败${NC}"
-    exit 1
-fi
 
-# Git 提交
-echo -e "${YELLOW}提交更改...${NC}"
+# 提交到 Git
+echo -e "\033[33m📝 正在提交到 Git...\033[0m"
 git add .dvc/config datasets/raw.dvc
 git commit -m "add raw data"
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Git 提交失败${NC}"
-    exit 1
-fi
 
-# DVC 推送（如果配置了远程存储）
-if [ -n "$remoteId" ]; then
-    echo -e "${YELLOW}推送数据...${NC}"
+# 推送到 remote（如果设置了）
+if [ ! -z "$drive_id" ]; then
+    echo -e "\033[33m📤 正在推送到 remote...\033[0m"
     dvc push
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}❌ DVC 推送失败${NC}"
-        exit 1
-    fi
 fi
 
-echo -e "${GREEN}✅ DVC 工作流完成${NC}" 
+echo -e "\033[32m✅ DVC 流程完成\033[0m" 

@@ -31,14 +31,24 @@ def _preprocess(image: np.ndarray) -> np.ndarray:
         预处理后的张量
     """
     try:
-        # 图像预处理
-        tensor = cv2.resize(image, (640, 640))
+        # 计算缩放比例
+        h, w = image.shape[:2]
+        scale = min(1280 / w, 1280 / h)
+        new_size = (int(w * scale), int(h * scale))
+        
+        # 调整大小
+        tensor = cv2.resize(image, new_size)
+        
+        # 颜色空间转换
         tensor = cv2.cvtColor(tensor, cv2.COLOR_BGR2RGB)
-        tensor = tensor.transpose(2, 0, 1)
-        tensor = np.ascontiguousarray(tensor)
-        tensor = tensor.astype(np.float32)
-        tensor /= 255.0
+        
+        # 归一化
+        tensor = tensor.astype(np.float16) / 255.0
+        
+        # 调整维度顺序
+        tensor = np.transpose(tensor, (2, 0, 1))
         tensor = np.expand_dims(tensor, axis=0)
+        
         return tensor
     except Exception as e:
         raise RuntimeError(f"图像预处理失败: {str(e)}") from e
@@ -94,8 +104,15 @@ def detect(image: np.ndarray, state: BoardState) -> List[Dict]:
         检测结果列表
     """
     try:
-        # TODO: 实现检测逻辑
-        results = []
+        # 预处理
+        tensor = _preprocess(image)
+        
+        # 推理
+        session = ort.InferenceSession("models/yolo.onnx")
+        outputs = session.run(None, {"images": tensor})
+        
+        # 后处理
+        results = _postprocess(outputs[0], state)
         return results
     except Exception as e:
         raise RuntimeError(f"目标检测失败: {str(e)}") from e

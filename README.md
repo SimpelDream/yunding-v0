@@ -1,6 +1,6 @@
-# TFT Assist
+# TFT Assistant
 
-云顶之弈助手，提供游戏状态识别和策略建议。
+云顶之弈助手，基于计算机视觉和机器学习的游戏辅助工具。
 
 ## 快速开始
 
@@ -11,119 +11,57 @@
 .\scripts\dvc_flow.ps1
 ```
 
-### Linux/Mac
+### Linux/macOS
 
 ```bash
 bash scripts/setup_env.sh
 bash scripts/dvc_flow.sh
 ```
 
-[![CI](https://github.com/yourusername/tft-assist/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/tft-assist/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/yourusername/tft-assist/branch/main/graph/badge.svg)](https://codecov.io/gh/yourusername/tft-assist)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+## 功能特性
 
-TFT 云顶之弈辅助工具，使用 YOLO-NAS 和 PaddleOCR 解析游戏画面，LightGBM 预测胜率和伤害。
+- 实时游戏状态识别
+- 阵容推荐
+- 装备推荐
+- 海克斯强化建议
+- 对局数据分析
 
-## 功能特点
+## 开发环境
 
-- 🎯 实时屏幕捕获
-- 🔍 YOLO-NAS 目标检测
-- 📝 PaddleOCR 文本识别
-- 📊 LightGBM 胜率预测
-- 💥 伤害预测
-- 🖥️ 游戏内悬浮窗
-- 🔌 插件系统支持
+- Python 3.10+
+- Poetry
+- CUDA 11.8+ (可选)
 
-## 安装
+## 项目结构
 
-### 从源码安装
-
-```bash
-# 克隆仓库
-git clone https://github.com/yourusername/tft-assist.git
-cd tft-assist
-
-# 安装依赖
-poetry install
-
-# 安装项目
-poetry install --no-dev
+```
+tftassist/
+├── src/
+│   └── tftassist/
+│       ├── capture/    # 屏幕捕获
+│       ├── core/       # 核心功能
+│       ├── detector/   # 目标检测
+│       ├── ocr/        # 文字识别
+│       ├── predictor/  # 预测模型
+│       └── ui/         # 用户界面
+├── scripts/            # 工具脚本
+├── tests/             # 测试用例
+└── models/            # 模型文件
 ```
 
-### 从 PyPI 安装
+## 开发指南
 
-```bash
-pip install tft-assist
-```
+1. 克隆仓库
+2. 安装依赖
+3. 运行测试
+4. 开始开发
 
-## 使用方法
+## 贡献指南
 
-### 基本使用
-
-```bash
-# 运行程序
-python -m tftassist
-
-# 演示模式
-python -m tftassist --demo
-```
-
-### 插件开发
-
-1. 在 `plugins` 目录下创建 Python 文件
-2. 实现 `on_state_update` 和 `on_game_end` 钩子
-3. 重启程序加载插件
-
-示例插件：
-
-```python
-from tftassist.plugins.hooks import PluginHookSpec
-
-class MyPlugin:
-    def on_state_update(self, state, ui):
-        # 处理状态更新
-        pass
-
-    def on_game_end(self, history):
-        # 处理游戏结束
-        pass
-```
-
-## 开发
-
-### 环境设置
-
-```bash
-# 安装开发依赖
-poetry install
-
-# 安装预提交钩子
-pre-commit install
-```
-
-### 训练模型
-
-```bash
-# 训练检测模型
-python scripts/train_det.py
-
-# 训练预测模型
-python scripts/train_lgbm.py
-```
-
-### 测试
-
-```bash
-# 运行测试
-pytest
-
-# 检查覆盖率
-pytest --cov=tftassist --cov-report=term-missing
-```
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
+1. Fork 仓库
+2. 创建特性分支
+3. 提交更改
+4. 发起 Pull Request
 
 ## 许可证
 

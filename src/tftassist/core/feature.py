@@ -7,13 +7,13 @@ import logging
 from typing import Dict, List, Optional, Tuple, Union, Any
 
 import numpy as np
-from numba import jit
+from numba import njit
 
 from .state import BoardState, Unit, TRAIT_VOCAB
 
 logger = logging.getLogger(__name__)
 
-@jit(nopython=True)
+@njit(cache=True)
 def _extract_traits(units: List[Unit]) -> np.ndarray:
     """提取特质特征。
     
