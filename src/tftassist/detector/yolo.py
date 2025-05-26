@@ -11,6 +11,8 @@ import numpy as np
 import onnxruntime as ort
 import torch
 from ultralytics import YOLO
+import cv2
+from ..core.state import BoardState, Unit
 
 logger = logging.getLogger(__name__)
 
