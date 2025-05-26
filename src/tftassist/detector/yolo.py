@@ -8,7 +8,8 @@ import logging
 import numpy as np
 import onnxruntime as ort
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple, cast
+from numpy.typing import NDArray
 from ultralytics import YOLO
 
 from ..core.state import BoardState, Unit
@@ -21,7 +22,7 @@ CLASS_NAMES = [
     "item_icon", "status_icon", "blue_hex", "artifact_hex", "void_hex", "portal_icon"
 ]
 
-def _preprocess(image: np.ndarray) -> np.ndarray:
+def _preprocess(image: NDArray[np.uint8]) -> NDArray[np.float32]:
     """预处理图像。
 
     Args:
@@ -43,7 +44,7 @@ def _preprocess(image: np.ndarray) -> np.ndarray:
         tensor = cv2.cvtColor(tensor, cv2.COLOR_BGR2RGB)
         
         # 归一化
-        tensor = tensor.astype(np.float16) / 255.0
+        tensor = tensor.astype(np.float32) / 255.0
         
         # 调整维度顺序
         tensor = np.transpose(tensor, (2, 0, 1))
@@ -53,7 +54,7 @@ def _preprocess(image: np.ndarray) -> np.ndarray:
     except Exception as e:
         raise RuntimeError(f"图像预处理失败: {str(e)}") from e
 
-def _postprocess(outputs: np.ndarray, state: BoardState) -> List[Dict]:
+def _postprocess(outputs: NDArray[np.float32], state: BoardState) -> List[Dict[str, Any]]:
     """后处理模型输出。
 
     Args:
@@ -93,7 +94,7 @@ def _postprocess(outputs: np.ndarray, state: BoardState) -> List[Dict]:
     except Exception as e:
         raise RuntimeError(f"输出后处理失败: {str(e)}") from e
 
-def detect(image: np.ndarray, state: BoardState) -> List[Dict]:
+def detect(image: NDArray[np.uint8], state: BoardState) -> List[Dict[str, Any]]:
     """执行目标检测。
 
     Args:
@@ -129,7 +130,7 @@ class YOLODetector:
         self.model = YOLO(model_path)
         logger.info(f"加载YOLO模型: {model_path}")
 
-    def detect(self, frame: np.ndarray) -> List[Tuple[float, float, float, float, float, int]]:
+    def detect(self, frame: NDArray[np.uint8]) -> List[Tuple[float, float, float, float, float, int]]:
         """检测目标。
         
         Args:
@@ -159,7 +160,7 @@ class YOLODetector:
             
         return detections
 
-    def update_state(self, state: BoardState, frame: np.ndarray) -> None:
+    def update_state(self, state: BoardState, frame: NDArray[np.uint8]) -> None:
         """更新游戏状态。
         
         Args:
@@ -220,7 +221,7 @@ class ONNXDetector:
         self.input_name = self.session.get_inputs()[0].name
         logger.info(f"加载 ONNX 模型: {model_path}")
 
-    def detect(self, image: np.ndarray) -> List[Dict]:
+    def detect(self, image: NDArray[np.uint8]) -> List[Dict[str, Any]]:
         """检测图像中的目标。
 
         Args:
@@ -239,7 +240,7 @@ class ONNXDetector:
         detections = self._postprocess(outputs)
         return detections
 
-    def _preprocess(self, image: np.ndarray) -> np.ndarray:
+    def _preprocess(self, image: NDArray[np.uint8]) -> NDArray[np.float32]:
         """预处理输入图像。
 
         Args:
@@ -251,7 +252,7 @@ class ONNXDetector:
         # TODO: 实现图像预处理
         raise NotImplementedError
 
-    def _postprocess(self, outputs: List[np.ndarray]) -> List[Dict]:
+    def _postprocess(self, outputs: List[NDArray[np.float32]]) -> List[Dict[str, Any]]:
         """后处理模型输出。
 
         Args:

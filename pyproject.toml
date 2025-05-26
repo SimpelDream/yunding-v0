@@ -64,7 +64,7 @@ target-version = "py39"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "--cov=tftassist --cov-report=term-missing"
+addopts = "-q"
 
 [tool.mypy]
 python_version = "3.9"

@@ -1,51 +1,62 @@
 """环境检查脚本。
 
-此脚本检查项目依赖的版本信息。
+此脚本用于检查项目依赖的版本和配置。
 """
 
-import subprocess
-from typing import Dict
+import importlib
+import sys
+from typing import Dict, Optional
 
-def get_version(cmd: str) -> str:
-    """获取命令的版本信息。
+def get_package_version(package_name: str) -> Optional[str]:
+    """获取包的版本。
 
     Args:
-        cmd: 要检查的命令
+        package_name: 包名
 
     Returns:
-        版本信息字符串
+        版本字符串，如果包未安装则返回 None
     """
     try:
-        # 使用 shell=True 以支持 Windows 命令
-        result = subprocess.run(
-            cmd,
-            shell=True,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        return result.stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return "未安装"
+        module = importlib.import_module(package_name)
+        return getattr(module, "__version__", None)
+    except ImportError:
+        return None
 
-def main() -> None:
-    """主函数，打印所有依赖的版本信息。"""
-    # 要检查的命令列表
-    commands: Dict[str, str] = {
-        "Python": "python --version",
-        "Poetry": "poetry --version",
-        "Ruff": "ruff --version",
-        "Mypy": "mypy --version",
-        "Pytest": "pytest --version"
+def check_dependencies() -> Dict[str, Optional[str]]:
+    """检查主要依赖的版本。
+
+    Returns:
+        依赖版本字典
+    """
+    dependencies = {
+        "numpy": None,
+        "opencv-python": None,
+        "onnxruntime": None,
+        "ultralytics": None,
+        "paddlepaddle": None,
+        "paddleocr": None,
+        "lightgbm": None,
+        "dxcam": None,
+        "pyside6": None,
+        "numba": None,
+        "duckdb": None,
+        "dvc": None
     }
     
-    # 打印版本信息
-    print("依赖版本检查:")
-    print("-" * 50)
-    for name, cmd in commands.items():
-        version = get_version(cmd)
-        print(f"{name}: {version}")
-    print("-" * 50)
+    for package in dependencies:
+        dependencies[package] = get_package_version(package)
+        
+    return dependencies
+
+def main() -> None:
+    """主函数。"""
+    print("Python 版本:", sys.version)
+    print("\n依赖版本:")
+    
+    deps = check_dependencies()
+    for package, version in deps.items():
+        status = f"✅ {version}" if version else "❌ 未安装"
+        print(f"{package}: {status}")
 
 if __name__ == "__main__":
     main() 

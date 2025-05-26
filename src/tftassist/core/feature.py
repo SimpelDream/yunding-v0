@@ -4,17 +4,18 @@
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import List, Dict, cast
 
 import numpy as np
 from numba import njit
+from numpy.typing import NDArray
 
 from .state import BoardState, Unit, TRAIT_VOCAB
 
 logger = logging.getLogger(__name__)
 
 @njit(cache=True)
-def _extract_traits(units: List[Unit]) -> np.ndarray:
+def _extract_traits(units: List[Unit]) -> NDArray[np.float32]:
     """提取特质特征。
     
     Args:
@@ -34,7 +35,7 @@ def _extract_traits(units: List[Unit]) -> np.ndarray:
                 
     return trait_vec
 
-def extract_features(state: BoardState) -> np.ndarray:
+def extract_features(state: BoardState) -> NDArray[np.float32]:
     """提取游戏状态特征。
     
     Args:
@@ -66,7 +67,7 @@ def extract_features(state: BoardState) -> np.ndarray:
     
     return features
 
-def _pad(x: np.ndarray, size: int) -> np.ndarray:
+def _pad(x: NDArray[np.float32], size: int) -> NDArray[np.float32]:
     """填充数组到指定大小。
     
     Args:
@@ -80,7 +81,7 @@ def _pad(x: np.ndarray, size: int) -> np.ndarray:
         return x[:size]
     return np.pad(x, (0, size - len(x)), mode='constant')
 
-def build_feature(state: BoardState) -> np.ndarray:
+def build_feature(state: BoardState) -> NDArray[np.float32]:
     """将棋盘状态转换为机器学习特征向量。
 
     Args:
